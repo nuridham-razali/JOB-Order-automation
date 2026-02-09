@@ -1,6 +1,6 @@
 
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
-import { JobOrder, ProductSpec, INITIAL_SUPPLY_SOURCE } from '../types';
+import { JobOrder, ProductSpec } from '../types';
 
 // Helper to yield control back to the main thread to keep UI responsive
 const yieldToMain = () => new Promise(resolve => setTimeout(resolve, 0));
@@ -514,7 +514,7 @@ export const generateJobOrderPDF = async (order: JobOrder): Promise<Uint8Array> 
 
         const mat = order.materials && order.materials[i];
         currX = tX;
-        headers.forEach((h, idx) => { // Use headers length to iterate columns
+        headers.forEach((_, idx) => { // Use headers length to iterate columns
             const cw = (idx === headers.length - 1) ? (CONTENT_WIDTH - (currX - tX)) : colWidths[idx];
             
             drawBox(page2, currX, py - rowHeight, cw, rowHeight);
