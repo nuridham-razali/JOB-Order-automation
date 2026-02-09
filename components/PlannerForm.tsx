@@ -111,7 +111,7 @@ const PlannerForm: React.FC<PlannerFormProps> = ({ orderId, onClose }) => {
                 // Generate PDF (async with yields)
                 const pdfBytes = await generateJobOrderPDF(freshOrder);
     
-                const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+                const blob = new Blob([pdfBytes as any], { type: 'application/pdf' });
                 const link = document.createElement('a');
                 link.href = URL.createObjectURL(blob);
                 link.download = `JobOrder_${freshOrder.poNumber}.pdf`;
