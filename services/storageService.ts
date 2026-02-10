@@ -54,8 +54,8 @@ export const StorageService = {
         const orders = await StorageService.getAllOrders();
         orders.push(order);
         localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(orders));
-        // Simulate network delay
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Minimal delay for responsiveness
+        await new Promise(resolve => setTimeout(resolve, 50));
         return;
     }
 
@@ -91,7 +91,8 @@ export const StorageService = {
             orders[index] = updatedOrder;
             localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(orders));
         }
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Minimal delay for responsiveness
+        await new Promise(resolve => setTimeout(resolve, 50));
         return;
     }
 
