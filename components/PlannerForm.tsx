@@ -114,10 +114,9 @@ const PlannerForm: React.FC<PlannerFormProps> = ({ orderId, onClose }) => {
 
   const handleDownloadPDF = async () => {
     if (!order) return;
-    setIsSaving(true); // Re-use saving spinner for PDF generation state
+    setIsSaving(true); 
     
-    // Increased delay to 500ms to allow React to reliably paint the 'Generating...' state
-    // before the main thread gets busy with PDF generation chunks
+    // Minimal delay to allow React to paint the 'Processing...' state
     setTimeout(async () => {
         try {
             // Auto-save before downloading
@@ -126,30 +125,28 @@ const PlannerForm: React.FC<PlannerFormProps> = ({ orderId, onClose }) => {
             const updatedOrder = getUpdatedOrderFromForm(currentStatus);
             if (!updatedOrder) return;
 
+            // Save to storage (async)
             await StorageService.updateOrder(updatedOrder);
             setOrder(updatedOrder);
 
-            // Fetch fresh to be sure
-            const freshOrder = await StorageService.getOrderById(orderId);
-            if(freshOrder) {
-                // Generate PDF (async with yields)
-                const pdfBytes = await generateJobOrderPDF(freshOrder);
-    
-                const blob = new Blob([pdfBytes as any], { type: 'application/pdf' });
-                const link = document.createElement('a');
-                link.href = URL.createObjectURL(blob);
-                link.download = `JobOrder_${freshOrder.poNumber}.pdf`;
-                document.body.appendChild(link); 
-                link.click();
-                document.body.removeChild(link);
-            }
+            // Generate PDF directly from the updated object (skip re-fetching)
+            const pdfBytes = await generateJobOrderPDF(updatedOrder);
+
+            const blob = new Blob([pdfBytes as any], { type: 'application/pdf' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `JobOrder_${updatedOrder.poNumber}.pdf`;
+            document.body.appendChild(link); 
+            link.click();
+            document.body.removeChild(link);
+            
         } catch (e) {
             console.error("PDF Generation failed", e);
             alert("Failed to generate PDF. Check console for details.");
         } finally {
             setIsSaving(false);
         }
-    }, 500);
+    }, 50);
   };
 
   if (loading || !order) return (
