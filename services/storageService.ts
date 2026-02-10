@@ -1,48 +1,115 @@
 
 import { JobOrder } from '../types';
 
-const STORAGE_KEY = 'halagel_job_orders_db';
-
-/**
- * NOTE FOR DEPLOYMENT:
- * To use Google Sheets as a database:
- * 1. Create a Google Apps Script (GAS) Web App attached to your Sheet.
- * 2. The GAS should have doS(e) and doPost(e) functions.
- * 3. Replace the localStorage calls below with fetch() calls to your GAS Web App URL.
- */
+// TODO: PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE
+// If this URL is left as the placeholder, the app will automatically fall back to using
+// browser LocalStorage, allowing you to test the full workflow immediately.
+const API_URL = 'PASTE_YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE';
+const LOCAL_STORAGE_KEY = 'halagel_orders';
 
 export const StorageService = {
-  getAllOrders: (): JobOrder[] => {
+  /**
+   * Fetch all orders from Google Sheets or LocalStorage
+   */
+  getAllOrders: async (): Promise<JobOrder[]> => {
+    // If API URL is not configured, use LocalStorage
+    if (API_URL.includes('PASTE_YOUR')) {
+        console.warn("API URL not set. Using LocalStorage for demonstration.");
+        try {
+            const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
+            return stored ? JSON.parse(stored) : [];
+        } catch (e) {
+            console.error("Failed to parse local storage", e);
+            return [];
+        }
+    }
+
     try {
-      const data = localStorage.getItem(STORAGE_KEY);
-      if (!data) return [];
+      const response = await fetch(`${API_URL}?action=get`);
+      const data = await response.json();
       
-      // Simple parse without recursive sanitization for performance
-      const orders = JSON.parse(data);
-      return orders as JobOrder[];
+      if (!Array.isArray(data)) return [];
+      
+      return data as JobOrder[];
     } catch (e) {
-      console.error("Failed to load orders", e);
+      console.error("Failed to load orders from API", e);
       return [];
     }
   },
 
-  getOrderById: (id: string): JobOrder | undefined => {
-    const orders = StorageService.getAllOrders();
+  /**
+   * Find specific order (now async)
+   */
+  getOrderById: async (id: string): Promise<JobOrder | undefined> => {
+    const orders = await StorageService.getAllOrders();
     return orders.find(o => o.id === id);
   },
 
-  createOrder: (order: JobOrder): void => {
-    const orders = StorageService.getAllOrders();
-    orders.push(order);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
+  /**
+   * Send new order to Google Sheets or LocalStorage
+   */
+  createOrder: async (order: JobOrder): Promise<void> => {
+    // LocalStorage Fallback
+    if (API_URL.includes('PASTE_YOUR')) {
+        const orders = await StorageService.getAllOrders();
+        orders.push(order);
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(orders));
+        // Simulate network delay
+        await new Promise(resolve => setTimeout(resolve, 500));
+        return;
+    }
+
+    try {
+      await fetch(API_URL, {
+        method: 'POST',
+        // CORS mode 'no-cors' is opaque (we won't see response), 
+        // but 'text/plain' content type avoids preflight OPTIONS check issues with GAS
+        mode: 'no-cors', 
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8',
+        },
+        body: JSON.stringify({
+          action: 'create',
+          data: order
+        })
+      });
+    } catch (e) {
+      console.error("Failed to create order", e);
+      throw e;
+    }
   },
 
-  updateOrder: (updatedOrder: JobOrder): void => {
-    const orders = StorageService.getAllOrders();
-    const index = orders.findIndex(o => o.id === updatedOrder.id);
-    if (index !== -1) {
-      orders[index] = updatedOrder;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
+  /**
+   * Update existing order in Google Sheets or LocalStorage
+   */
+  updateOrder: async (updatedOrder: JobOrder): Promise<void> => {
+    // LocalStorage Fallback
+    if (API_URL.includes('PASTE_YOUR')) {
+        const orders = await StorageService.getAllOrders();
+        const index = orders.findIndex(o => o.id === updatedOrder.id);
+        if (index !== -1) {
+            orders[index] = updatedOrder;
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(orders));
+        }
+        await new Promise(resolve => setTimeout(resolve, 500));
+        return;
+    }
+
+    try {
+      await fetch(API_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8',
+        },
+        body: JSON.stringify({
+          action: 'update',
+          data: updatedOrder
+        })
+      });
+    } catch (e) {
+      console.error("Failed to update order", e);
+      throw e;
     }
   },
 
