@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { JobOrder, MaterialRow, OrderStatus } from '../types';
 import { StorageService } from '../services/storageService';
 import { generateJobOrderPDF } from '../services/pdfGenerator';
-import { Plus, Trash2, Download, CheckCircle, ArrowLeft } from 'lucide-react';
+import { Plus, Trash2, Download, CheckCircle, ArrowLeft, Loader2, RefreshCw } from 'lucide-react';
 
 interface PlannerFormProps {
   orderId: string;
@@ -13,14 +13,20 @@ interface PlannerFormProps {
 const PlannerForm: React.FC<PlannerFormProps> = ({ orderId, onClose }) => {
   const [order, setOrder] = useState<JobOrder | undefined>(undefined);
   const [materials, setMaterials] = useState<MaterialRow[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    const data = StorageService.getOrderById(orderId);
-    if (data) {
-      setOrder(data);
-      setMaterials(data.materials || []);
-    }
+    const fetchData = async () => {
+        setLoading(true);
+        const data = await StorageService.getOrderById(orderId);
+        if (data) {
+          setOrder(data);
+          setMaterials(data.materials || []);
+        }
+        setLoading(false);
+    };
+    fetchData();
   }, [orderId]);
 
   const addMaterialRow = () => {
@@ -59,10 +65,9 @@ const PlannerForm: React.FC<PlannerFormProps> = ({ orderId, onClose }) => {
 
   const getValue = (id: string) => (document.getElementById(id) as HTMLInputElement)?.value || '';
 
-  const handleSave = async (status: 'Closed' | 'Pending' | 'Delivered') => {
-    if (!order) return;
-    
-    const updatedOrder: JobOrder = {
+  const getUpdatedOrderFromForm = (status: 'Closed' | 'Pending' | 'Delivered'): JobOrder | undefined => {
+      if (!order) return undefined;
+      return {
         ...order,
         materials,
         finalStatus: status,
@@ -76,37 +81,56 @@ const PlannerForm: React.FC<PlannerFormProps> = ({ orderId, onClose }) => {
         // Planner Signatures
         plannerPreparedBy: getValue('plannerPreparedBy'),
         plannerPreparedDate: getValue('plannerPreparedDate'),
-        // Removed Reviewed, Approved, Received fields as they are no longer in the form.
-        // If they exist in old data, they will be cleared upon save here as inputs are missing.
-        plannerReviewedBy: '',
-        plannerReviewedDate: '',
-        plannerApprovedBy: '',
-        plannerApprovedDate: '',
-        plannerReceivedBy: '',
-        plannerReceivedDate: '',
+        plannerReviewedBy: getValue('plannerReviewedBy'),
+        plannerReviewedDate: getValue('plannerReviewedDate'),
+        plannerApprovedBy: getValue('plannerApprovedBy'),
+        plannerApprovedDate: getValue('plannerApprovedDate'),
+        plannerReceivedBy: getValue('plannerReceivedBy'),
+        plannerReceivedDate: getValue('plannerReceivedDate'),
 
         // Footer Status
         qtyDelivered: getValue('qtyDelivered'),
         pendingReason: getValue('pendingReason'),
     };
+  }
 
-    StorageService.updateOrder(updatedOrder);
-    setOrder(updatedOrder);
-    alert('Order updated!');
+  const handleSave = async (status: 'Closed' | 'Pending' | 'Delivered') => {
+    if (!order) return;
+    setIsSaving(true);
+    
+    const updatedOrder = getUpdatedOrderFromForm(status);
+    if (!updatedOrder) return;
+
+    try {
+        await StorageService.updateOrder(updatedOrder);
+        setOrder(updatedOrder);
+        alert('Order updated!');
+    } catch (e) {
+        alert('Failed to update order.');
+    } finally {
+        setIsSaving(false);
+    }
   };
 
   const handleDownloadPDF = async () => {
     if (!order) return;
-    setLoading(true);
+    setIsSaving(true); // Re-use saving spinner for PDF generation state
     
     // Increased delay to 500ms to allow React to reliably paint the 'Generating...' state
     // before the main thread gets busy with PDF generation chunks
     setTimeout(async () => {
         try {
             // Auto-save before downloading
-            await handleSave(order.finalStatus || 'Pending');
+            const currentStatus = order.finalStatus || 'Pending';
             
-            const freshOrder = StorageService.getOrderById(orderId);
+            const updatedOrder = getUpdatedOrderFromForm(currentStatus);
+            if (!updatedOrder) return;
+
+            await StorageService.updateOrder(updatedOrder);
+            setOrder(updatedOrder);
+
+            // Fetch fresh to be sure
+            const freshOrder = await StorageService.getOrderById(orderId);
             if(freshOrder) {
                 // Generate PDF (async with yields)
                 const pdfBytes = await generateJobOrderPDF(freshOrder);
@@ -123,12 +147,17 @@ const PlannerForm: React.FC<PlannerFormProps> = ({ orderId, onClose }) => {
             console.error("PDF Generation failed", e);
             alert("Failed to generate PDF. Check console for details.");
         } finally {
-            setLoading(false);
+            setIsSaving(false);
         }
     }, 500);
   };
 
-  if (!order) return <div>Loading...</div>;
+  if (loading || !order) return (
+    <div className="max-w-6xl mx-auto my-8 px-4 text-center py-12">
+      <RefreshCw className="w-8 h-8 animate-spin mx-auto text-brand-600 mb-4" />
+      <p className="text-gray-600">Loading Order Details...</p>
+    </div>
+  );
 
   return (
     <div className="bg-white shadow-xl rounded-lg overflow-hidden m-4 max-w-6xl mx-auto">
@@ -138,8 +167,8 @@ const PlannerForm: React.FC<PlannerFormProps> = ({ orderId, onClose }) => {
             <h2 className="text-xl font-bold text-gray-900">Planning Section (Order: {order.poNumber})</h2>
         </div>
         <div className="space-x-2">
-            <button onClick={handleDownloadPDF} disabled={loading} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm font-bold flex items-center inline-flex transition-colors">
-                <Download className="w-4 h-4 mr-2" /> {loading ? 'Generating...' : 'Download PDF'}
+            <button onClick={handleDownloadPDF} disabled={isSaving} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm font-bold flex items-center inline-flex transition-colors">
+                <Download className="w-4 h-4 mr-2" /> {isSaving ? 'Processing...' : 'Download PDF'}
             </button>
         </div>
       </div>
@@ -201,8 +230,8 @@ const PlannerForm: React.FC<PlannerFormProps> = ({ orderId, onClose }) => {
         </div>
 
         {/* Approvals */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
-            {['Prepared'].map((role) => {
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t">
+            {['Prepared', 'Reviewed', 'Approved', 'Received'].map((role) => {
                 const roleKey = `planner${role}By` as keyof JobOrder;
                 const dateKey = `planner${role}Date` as keyof JobOrder;
                 return (
@@ -245,11 +274,12 @@ const PlannerForm: React.FC<PlannerFormProps> = ({ orderId, onClose }) => {
 
         {/* Action Footer */}
         <div className="flex justify-end pt-6 border-t space-x-4">
-             <button onClick={() => handleSave('Pending')} className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50">
-                 Save Draft
+             <button disabled={isSaving} onClick={() => handleSave('Pending')} className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+                 {isSaving ? "Saving..." : "Save Draft"}
              </button>
-             <button onClick={() => handleSave('Closed')} className="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700 flex items-center">
-                <CheckCircle className="mr-2 w-4 h-4"/> Save & Close
+             <button disabled={isSaving} onClick={() => handleSave('Closed')} className="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700 flex items-center disabled:opacity-50">
+                {isSaving ? <Loader2 className="mr-2 w-4 h-4 animate-spin"/> : <CheckCircle className="mr-2 w-4 h-4"/>} 
+                Save & Close
              </button>
         </div>
       </div>
