@@ -193,17 +193,28 @@ export const generateJobOrderPDF = async (order: JobOrder): Promise<Uint8Array> 
     drawBox(page1, MARGIN, y - rowH2, CONTENT_WIDTH, rowH2);
     
     // SKU Section - Grouped Left
-    let currentX = MARGIN + 40; // Indent slightly
+    // Shifted starting position left to accommodate 3 items
+    let currentX = MARGIN + 10; 
+    
+    // Existing
     drawText(page1, 'EXISTING SKU', currentX, y - textOffset2 - 4, S_TEXT);
     currentX += 75;
     drawBox(page1, currentX, boxY2, CB_W, CB_H);
     if (order.skuType === 'Existing') drawTick(page1, currentX, boxY2);
     
-    currentX += 30; // Gap
+    // New
+    currentX += 25; 
     drawText(page1, 'NEW SKU', currentX, y - textOffset2 - 4, S_TEXT);
     currentX += 50;
     drawBox(page1, currentX, boxY2, CB_W, CB_H);
     if (order.skuType === 'New') drawTick(page1, currentX, boxY2);
+
+    // Trial
+    currentX += 25; 
+    drawText(page1, 'TRIAL', currentX, y - textOffset2 - 4, S_TEXT);
+    currentX += 35;
+    drawBox(page1, currentX, boxY2, CB_W, CB_H);
+    if (order.skuType === 'Trial') drawTick(page1, currentX, boxY2);
 
     // Date Section - Right side
     const dateLabel = 'ESTIMATE DELIVERY DATE :';
@@ -593,9 +604,9 @@ export const generateJobOrderPDF = async (order: JobOrder): Promise<Uint8Array> 
     };
 
     drawSigCell2(0, ['Prepared by', '( Production Planner )'], order.plannerPreparedBy, order.plannerPreparedDate);
-    drawSigCell2(1, ['Reviewed by', '( Production Manager )'], '', '');
-    drawSigCell2(2, ['Approved by', '( Plant Manager )'], '', '');
-    drawSigCell2(3, ['Received by', '( Production HOD )'], '', '');
+    drawSigCell2(1, ['Reviewed by', '( Production Manager )'], order.plannerReviewedBy, order.plannerReviewedDate);
+    drawSigCell2(2, ['Approved by', '( Plant Manager )'], order.plannerApprovedBy, order.plannerApprovedDate);
+    drawSigCell2(3, ['Received by', '( Production HOD )'], order.plannerReceivedBy, order.plannerReceivedDate);
 
     py -= sigH2 + 12;
     
