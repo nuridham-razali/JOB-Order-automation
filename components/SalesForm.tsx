@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { INITIAL_SUPPLY_SOURCE, JobOrder, OrderStatus, ProductSpec } from '../types';
 import { StorageService } from '../services/storageService';
-import { ArrowRight, Save, ArrowLeft, PlusCircle, XCircle } from 'lucide-react';
+import { ArrowRight, Save, ArrowLeft, PlusCircle, XCircle, Loader2 } from 'lucide-react';
 
 interface SalesFormProps {
   onComplete: () => void;
@@ -11,6 +11,7 @@ interface SalesFormProps {
 const SalesForm: React.FC<SalesFormProps> = ({ onComplete }) => {
   const [step, setStep] = useState(1);
   const [hasProduct2, setHasProduct2] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Initialize with empty product 2 structure
   const initialProduct2: ProductSpec = {
@@ -95,8 +96,9 @@ const SalesForm: React.FC<SalesFormProps> = ({ onComplete }) => {
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
     
     // Clean up product 2 if not used
     const finalOrder: JobOrder = {
@@ -111,8 +113,15 @@ const SalesForm: React.FC<SalesFormProps> = ({ onComplete }) => {
         delete finalOrder.product2;
     }
     
-    StorageService.createOrder(finalOrder);
-    onComplete();
+    try {
+        await StorageService.createOrder(finalOrder);
+        // Call onComplete only on success
+        onComplete();
+    } catch (err) {
+        console.error(err);
+        alert("Failed to submit order. Check console for details.");
+        setIsSubmitting(false); // Only re-enable button on failure
+    }
   };
 
   return (
@@ -173,6 +182,7 @@ const SalesForm: React.FC<SalesFormProps> = ({ onComplete }) => {
                 <span className="text-sm font-medium text-gray-700">SKU Status:</span>
                 <label className="flex items-center text-gray-900 cursor-pointer"><input type="radio" name="sku" checked={formData.skuType === 'Existing'} onChange={() => handleChange('skuType', 'Existing')} className="mr-2 bg-white" /> Existing SKU</label>
                 <label className="flex items-center text-gray-900 cursor-pointer"><input type="radio" name="sku" checked={formData.skuType === 'New'} onChange={() => handleChange('skuType', 'New')} className="mr-2 bg-white" /> New SKU</label>
+                <label className="flex items-center text-gray-900 cursor-pointer"><input type="radio" name="sku" checked={formData.skuType === 'Trial'} onChange={() => handleChange('skuType', 'Trial')} className="mr-2 bg-white" /> Trial</label>
             </div>
 
             <h3 className="text-lg font-medium text-brand-900 border-b pb-2 pt-4">A. Product Detail</h3>
@@ -418,8 +428,9 @@ const SalesForm: React.FC<SalesFormProps> = ({ onComplete }) => {
               <button type="button" onClick={() => setStep(2)} className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 flex items-center">
                 <ArrowLeft className="mr-2 w-4 h-4"/> Back
               </button>
-              <button type="submit" className="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700 flex items-center shadow-lg transform transition hover:scale-105">
-                <Save className="mr-2 w-4 h-4"/> Submit Job Order
+              <button disabled={isSubmitting} type="submit" className="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700 flex items-center shadow-lg transform transition hover:scale-105 disabled:opacity-50">
+                {isSubmitting ? <Loader2 className="mr-2 w-4 h-4 animate-spin"/> : <Save className="mr-2 w-4 h-4"/>} 
+                {isSubmitting ? "Submitting..." : "Submit Job Order"}
               </button>
             </div>
           </div>
