@@ -2,12 +2,8 @@
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { JobOrder, ProductSpec } from '../types';
 
-// Helper to yield control back to the main thread to keep UI responsive
-const yieldToMain = () => new Promise(resolve => setTimeout(resolve, 0));
-
 export const generateJobOrderPDF = async (order: JobOrder): Promise<Uint8Array> => {
   console.log("Starting PDF Generation...");
-  await yieldToMain();
 
   try {
     const pdfDoc = await PDFDocument.create();
@@ -164,8 +160,6 @@ export const generateJobOrderPDF = async (order: JobOrder): Promise<Uint8Array> 
         if(idx < 2) compX += compW + 10;
     });
 
-    await yieldToMain();
-
     // 3. CUSTOMER / PO / SKU BLOCK
     y -= SPACING.COMPANY_TO_CUSTOMER;
     
@@ -228,8 +222,6 @@ export const generateJobOrderPDF = async (order: JobOrder): Promise<Uint8Array> 
 
     y -= rowH2;
 
-    await yieldToMain();
-
     y -= SPACING.SKU_TO_SECTION_A; // Controlled gap before Section A
 
     // --- SECTION A HEADER ---
@@ -244,9 +236,7 @@ export const generateJobOrderPDF = async (order: JobOrder): Promise<Uint8Array> 
     const colWidth = CONTENT_WIDTH / 2;
     
     // --- COLUMN RENDERER ---
-    const drawContentColumn = async (startX: number, data: ProductSpec | undefined): Promise<number> => {
-        await yieldToMain();
-
+    const drawContentColumn = (startX: number, data: ProductSpec | undefined): number => {
         let cy = sectionAContentTopY - 10;
         const innerX = startX + 5; 
         const contentW = colWidth - 10;
@@ -345,7 +335,6 @@ export const generateJobOrderPDF = async (order: JobOrder): Promise<Uint8Array> 
         });
 
         // C. REQUIREMENT
-        await yieldToMain();
         cy -= 6;
         drawText(page1, 'C. REQUIREMENT (PLEASE TICK /)', innerX, cy, S_BOLD, true);
         cy -= 10;
@@ -406,8 +395,8 @@ export const generateJobOrderPDF = async (order: JobOrder): Promise<Uint8Array> 
     };
 
     // Draw Columns
-    const endY1 = await drawContentColumn(MARGIN, order);
-    const endY2 = await drawContentColumn(PAGE_WIDTH / 2, order.product2); 
+    const endY1 = drawContentColumn(MARGIN, order);
+    const endY2 = drawContentColumn(PAGE_WIDTH / 2, order.product2); 
 
     // --- SIGNATURES (Page 1) ---
     const sigBoxHeight = 65; // Compact height
@@ -461,8 +450,6 @@ export const generateJobOrderPDF = async (order: JobOrder): Promise<Uint8Array> 
     drawSigCell(MARGIN, 'Prepared by ( Sales Executive )', order.salesPreparedBy, order.salesDate);
     // Approved by Sales Manager - Empty input as per request
     drawSigCell(MARGIN + sigW, 'Approved by ( Sales Manager )', '', '');
-
-    await yieldToMain();
 
     // --- PAGE 2: PLANNER (SECTION B) ---
     const page2 = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
@@ -521,8 +508,6 @@ export const generateJobOrderPDF = async (order: JobOrder): Promise<Uint8Array> 
     const numRows = 25;
     
     for (let i = 0; i < numRows; i++) {
-        if (i > 0 && i % 5 === 0) await yieldToMain();
-
         const mat = order.materials && order.materials[i];
         currX = tX;
         headers.forEach((_, idx) => { // Use headers length to iterate columns
@@ -643,7 +628,6 @@ export const generateJobOrderPDF = async (order: JobOrder): Promise<Uint8Array> 
     drawText(page2, order.pendingReason, MARGIN + 105, py, S_TEXT);
 
     console.log("PDF Generation Complete.");
-    await yieldToMain(); 
     return await pdfDoc.save();
   } catch(error) {
     console.error("Critical PDF Error:", error);
