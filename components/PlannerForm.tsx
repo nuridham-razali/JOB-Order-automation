@@ -125,12 +125,15 @@ const PlannerForm: React.FC<PlannerFormProps> = ({ orderId, onClose }) => {
             const updatedOrder = getUpdatedOrderFromForm(currentStatus);
             if (!updatedOrder) return;
 
-            // Save to storage (async)
-            await StorageService.updateOrder(updatedOrder);
+            // Update local state immediately for responsiveness
             setOrder(updatedOrder);
 
-            // Generate PDF directly from the updated object (skip re-fetching)
-            const pdfBytes = await generateJobOrderPDF(updatedOrder);
+            // Trigger Save AND PDF Generation in parallel to save time
+            const savePromise = StorageService.updateOrder(updatedOrder);
+            const pdfPromise = generateJobOrderPDF(updatedOrder);
+
+            // Wait for PDF first to trigger download ASAP
+            const pdfBytes = await pdfPromise;
 
             const blob = new Blob([pdfBytes as any], { type: 'application/pdf' });
             const link = document.createElement('a');
@@ -140,6 +143,9 @@ const PlannerForm: React.FC<PlannerFormProps> = ({ orderId, onClose }) => {
             link.click();
             document.body.removeChild(link);
             
+            // Ensure save completes before reenabling UI
+            await savePromise;
+
         } catch (e) {
             console.error("PDF Generation failed", e);
             alert("Failed to generate PDF. Check console for details.");
